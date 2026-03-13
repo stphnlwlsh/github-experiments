@@ -1,3 +1,17 @@
 fn main() {
-    println!("Hello, world!");
+    println!("{}", greet("world"));
+}
+
+fn greet(name: &str) -> String {
+    format!("Hello, {}!", name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_greet() {
+        assert_eq!(greet("world"), "Hello, world!");
+    }
 }

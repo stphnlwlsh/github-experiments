@@ -1,22 +1,50 @@
 name: Rust
-
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
-
+    runs-on: ${{ matrix.RUNNER }}
+    strategy:
+      matrix:
+        ARCHITECTURE: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, aarch64-apple-darwin]
+        BUILD_TARGET: [release]
+        include:
+          - ARCHITECTURE: x86_64-unknown-linux-gnu
+            RUNNER: ubuntu-latest
+          - ARCHITECTURE: aarch64-unknown-linux-gnu
+            RUNNER: ubuntu-latest
+          - ARCHITECTURE: aarch64-apple-darwin
+            RUNNER: macos-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
+    - name: Install cross-compilation tools
+      if: matrix.ARCHITECTURE == 'aarch64-unknown-linux-gnu'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-aarch64-linux-gnu
+    - name: Install Rust target
+      run: rustup target add ${{ matrix.ARCHITECTURE }}
+    - name: Build ${{ matrix.ARCHITECTURE }}
+      run: cargo build --verbose --${{ matrix.BUILD_TARGET }} --target ${{ matrix.ARCHITECTURE }}
+      env:
+        CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: ${{ matrix.ARCHITECTURE == 'aarch64-unknown-linux-gnu' && 'aarch64-linux-gnu-gcc' || '' }}
     - name: Run tests
+      # Skip tests for cross-compilation unless using an emulator
+      if: |
+        (matrix.RUNNER == 'ubuntu-latest' && matrix.ARCHITECTURE == 'x86_64-unknown-linux-gnu') ||
+        (matrix.RUNNER == 'macos-latest' && matrix.ARCHITECTURE == 'aarch64-apple-darwin')
       run: cargo test --verbose
+    - name: Upload release artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: github-experiments-${{ matrix.ARCHITECTURE }}
+        path: target/${{ matrix.ARCHITECTURE }}/${{ matrix.BUILD_TARGET }}/github-experiments
+
